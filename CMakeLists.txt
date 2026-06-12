@@ -29,14 +29,23 @@ option(DEVELOPER_MODE "" ON)
 option(REF_BUILD_FRAMEWORK "" ON)
 option(REF_BUILD_DEPENDENCIES "" ON)
 
-project(reframework
-	LANGUAGES
-		CXX
-		C
-		CSharp
-)
+option(ENABLE_CSHARP "Enable C# language support (requires Visual Studio generator)" OFF)
 
-include(CSharpUtilities)
+if(ENABLE_CSHARP)
+	project(reframework
+		LANGUAGES
+			CXX
+			C
+			CSharp
+	)
+	include(CSharpUtilities)
+else()
+	project(reframework
+		LANGUAGES
+			CXX
+			C
+	)
+endif()
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
