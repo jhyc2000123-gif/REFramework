@@ -19,6 +19,17 @@
 #include "IntegrityCheckBypass.hpp"
 #include "DisasmUtils.hpp"
 
+// Wine/Proton compatibility: detect if we are running under Wine.
+// wine_get_version is always exported from ntdll.dll on Wine/Proton but never on real Windows.
+static bool is_running_under_wine() {
+    static const bool result = []() {
+        const auto ntdll = GetModuleHandleA("ntdll.dll");
+        if (!ntdll) return false;
+        return GetProcAddress(ntdll, "wine_get_version") != nullptr;
+    }();
+    return result;
+}
+
 struct IntegrityCheckPattern {
     std::string pat{};
     uint32_t offset{};
@@ -1498,6 +1509,10 @@ void validate_job_func(SafetyHookContext& ctx) {
 }
 
 void IntegrityCheckBypass::immediate_patch_re9() {
+    if (is_running_under_wine()) {
+        spdlog::info("[IntegrityCheckBypass]: Wine/Proton detected, skipping RE9 immediate patches (not needed and unsafe on Wine).");
+        return;
+    }
     spdlog::info("[IntegrityCheckBypass]: Scanning RE9...");
 
     const auto game = utility::get_executable();
@@ -1991,6 +2006,9 @@ void IntegrityCheckBypass::immediate_patch_re9() {
 }
 
 void IntegrityCheckBypass::re9_heartbeat_bypass() {
+    if (is_running_under_wine()) {
+        return; // Wine/Proton: renderer memory layout differs; heartbeat scan is unsafe and unnecessary.
+    }
     // let me explain what's happening here.
     // because the obfuscation has been randomized around the areas we've been patching so far (immediate_patch_re9, see commented out code)
     // I had become a bit fed up with manually fixing broken anti-tamper bypasses every update.
@@ -2110,6 +2128,10 @@ void IntegrityCheckBypass::re9_heartbeat_bypass() {
 }
 
 void IntegrityCheckBypass::remove_stack_destroyer() {
+    if (is_running_under_wine()) {
+        spdlog::info("[IntegrityCheckBypass]: Wine/Proton detected, skipping stack destroyer removal.");
+        return;
+    }
     spdlog::info("[IntegrityCheckBypass]: Searching for stack destroyer...");
 
     const auto game = utility::get_executable();
@@ -2127,6 +2149,10 @@ void IntegrityCheckBypass::remove_stack_destroyer() {
 }
 
 void IntegrityCheckBypass::setup_pristine_syscall() {
+    if (is_running_under_wine()) {
+        spdlog::info("[IntegrityCheckBypass]: Wine/Proton detected, skipping pristine syscall setup (ntdll is Wine's own implementation).");
+        return;
+    }
     if (s_pristine_protect_virtual_memory != nullptr) {
         spdlog::info("[IntegrityCheckBypass]: NtProtectVirtualMemory already setup!");
         return;
@@ -2174,6 +2200,10 @@ void IntegrityCheckBypass::setup_pristine_syscall() {
 
 // hahahah i hate this
 void IntegrityCheckBypass::fix_virtual_protect() try {
+    if (is_running_under_wine()) {
+        spdlog::info("[IntegrityCheckBypass]: Wine/Proton detected, skipping VirtualProtect hook (Wine's ntdll must not be patched).");
+        return;
+    }
     spdlog::info("[IntegrityCheckBypass]: Fixing VirtualProtect...");
 
     setup_pristine_syscall(); // Called earlier in DllMain
